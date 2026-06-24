@@ -14,16 +14,21 @@ body { background:#0a0a0a; font-family:monospace; overflow:hidden; }
   padding:0 16px; z-index:100;
 }
 #hud-title { color:#7fc87f; font-size:12px; letter-spacing:3px; }
-#hud-stats { display:flex; gap:16px; }
+#hud-stats { display:flex; gap:16px; align-items:center; }
 .hstat { font-size:10px; color:#3a6a3a; }
 .hstat span { color:#7fc87f; }
+.hstat span.warn { color:#f0b429; }
+.hstat span.danger { color:#ff4444; }
+#sync-dot { width:6px; height:6px; border-radius:50%; background:#3a6a3a; display:inline-block; margin-right:4px; }
+#sync-dot.live { background:#7fc87f; animation:blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 #world { position:fixed; top:44px; left:0; right:0; bottom:60px; overflow:hidden; }
 canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rendering:crisp-edges; }
 .speech-bubble {
   position:absolute; background:#fff; border:2px solid #000;
   border-radius:4px; padding:4px 7px; font-size:9px; color:#000;
-  pointer-events:none; z-index:50; line-height:1.4; max-width:120px;
-  box-shadow:2px 2px 0 #000;
+  pointer-events:none; z-index:50; line-height:1.4; max-width:130px;
+  box-shadow:2px 2px 0 #000; transition:opacity 0.3s;
 }
 .speech-bubble::after {
   content:''; position:absolute; bottom:-8px; left:10px;
@@ -37,6 +42,7 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 .log-entry { font-size:9px; color:#3a6a3a; padding:1px 0; }
 .log-entry.signal { color:#7fc87f; }
 .log-entry.warn { color:#f0b429; }
+.log-entry.trade { color:#ff9f7f; }
 #panel-overlay {
   display:none; position:fixed; top:44px; left:0; right:0; bottom:60px;
   background:rgba(0,8,0,0.97); z-index:200; padding:20px; overflow-y:auto;
@@ -56,17 +62,20 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 .s-active { background:#1a3a1a; color:#7fc87f; border:1px solid #2d5a2d; }
 .s-alert { background:#3a2a0a; color:#f0b429; border:1px solid #5a3a1a; }
 .s-sleep { background:#111; color:#555; border:1px solid #222; }
+.live-badge { background:#0a2a0a; border:1px solid #2d5a2d; color:#7fc87f; font-size:9px; padding:2px 8px; border-radius:3px; }
 </style>
 </head>
 <body>
 <div id="hud">
-  <div id="hud-title">▶ BULLISHBOT HQ</div>
+  <div id="hud-title">▶ BULLISHBOT HQ <span id="sync-dot"></span></div>
   <div id="hud-stats">
-    <div class="hstat">BAL: <span>$307.35</span></div>
-    <div class="hstat">VIX: <span>19.1 ✓</span></div>
-    <div class="hstat">TRADES: <span>0</span></div>
-    <div class="hstat">FLOOR: <span>$261.36</span></div>
-    <div class="hstat">MODE: <span>LIVE</span></div>
+    <div class="hstat">BAL: <span id="s-bal">—</span></div>
+    <div class="hstat">VIX: <span id="s-vix">—</span></div>
+    <div class="hstat">TRADES: <span id="s-trades">—</span></div>
+    <div class="hstat">OPEN: <span id="s-open">—</span></div>
+    <div class="hstat">FLOOR: <span id="s-floor">—</span></div>
+    <div class="hstat">MODE: <span id="s-mode">—</span></div>
+    <div class="hstat"><span id="s-time" style="color:#3a6a3a">—</span></div>
   </div>
 </div>
 <div id="world">
@@ -74,10 +83,10 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
   <canvas id="sc"></canvas>
 </div>
 <div id="log-bar">
-  <div class="log-entry signal" id="l0">▶ bullishbot hq online — all agents reporting</div>
-  <div class="log-entry warn" id="l1">▶ 13:09 ET — IND: TSLA ADX 54.0 out of range</div>
-  <div class="log-entry" id="l2">▶ 13:09 ET — ICT: SPY no directional bias</div>
-  <div class="log-entry" id="l3">▶ 13:09 ET — RISK: balance $307.35 healthy</div>
+  <div class="log-entry" id="l0">▶ connecting to bullishbot...</div>
+  <div class="log-entry" id="l1"></div>
+  <div class="log-entry" id="l2"></div>
+  <div class="log-entry" id="l3"></div>
 </div>
 <div id="panel-overlay">
   <div class="panel-header">
@@ -89,10 +98,7 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 
 <script>
 const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
-
-// We use 3 seated sheets. To make 5 unique agents we apply color tints to 2 of them.
-// boss=4 frames (320x80), secretary=3 frames (240x80), accountant=4 frames (320x80)
-// Each frame is 80x80px
+const STATUS_URL = 'https://nauyaane.github.io/bullishbot-hq/bot_status.json';
 
 const SHEETS = {
   boss:       { url: BASE+'/Characters/Seated_Characters/Office%20Boss%20List.png',  fw:80, fh:80, frames:4 },
@@ -101,79 +107,146 @@ const SHEETS = {
 };
 
 const IMGS = {};
-Object.entries(SHEETS).forEach(([k,s])=>{
-  const img = new Image();
-  img.src = s.url;
-  IMGS[k] = img;
-});
-
-// Off-screen canvases for tinted versions
-const TINTED = {};
-function makeTinted(key, r, g, b) {
-  const s = SHEETS[key];
-  const img = IMGS[key];
-  const offscreen = document.createElement('canvas');
-  offscreen.width = s.fw * s.frames;
-  offscreen.height = s.fh;
-  const ctx = offscreen.getContext('2d');
-  ctx.drawImage(img, 0, 0);
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.fillStyle = `rgb(${r},${g},${b})`;
-  ctx.fillRect(0, 0, offscreen.width, offscreen.height);
-  ctx.globalCompositeOperation = 'destination-in';
-  ctx.drawImage(img, 0, 0);
-  TINTED[key+'_tint_'+r] = offscreen;
-  return offscreen;
-}
+Object.entries(SHEETS).forEach(([k,s])=>{ const img=new Image(); img.src=s.url; IMGS[k]=img; });
 
 const W = window.innerWidth;
 const H = window.innerHeight - 104;
-
-const SW = 110; // display width
-const SH = 110; // display height
-
-// Vertical positions — alternating rows for depth
-const ROW1_Y = Math.round(H * 0.48); // back row
-const ROW2_Y = Math.round(H * 0.62); // front row
+const SW = 110, SH = 110;
+const ROW1_Y = Math.round(H*0.48);
+const ROW2_Y = Math.round(H*0.62);
 
 const agents = [
-  { id:'ict',  name:'ICT Agent',      color:'#4a9aff', state:'active',
-    sheet:'boss', tint:null,
-    msg:'SPY @ $737\nnot at key level',
-    role:'Scans SPY and QQQ every 60s for ICT key levels, Fair Value Gaps, and 1-minute confirmation.',
+  { id:'ict',  name:'ICT Agent',      color:'#4a9aff', state:'active',   sheet:'boss',       tint:null,
+    msg:'connecting...', role:'Scans SPY and QQQ every 60s for ICT key levels, Fair Value Gaps, and 1-minute confirmation.',
     ax:Math.round(W*0.10), ay:ROW1_Y,
     settings:[{label:'Tickers',key:'t',val:'SPY, QQQ'},{label:'Window start',key:'ws',val:'10:00 AM ET'},{label:'Window end',key:'we',val:'3:30 PM ET'},{label:'Min R:R',key:'rr',val:'1.5'}]
   },
-  { id:'ind',  name:'IND Agent',      color:'#f0b429', state:'alert',
-    sheet:'secretary', tint:null,
-    msg:'TSLA ADX 54\nout of range!',
-    role:'Scans TSLA, NVDA, IWM for ADX/MACD/RSI/VWAP/Volume confluence signals.',
+  { id:'ind',  name:'IND Agent',      color:'#f0b429', state:'active',   sheet:'secretary',  tint:null,
+    msg:'connecting...', role:'Scans TSLA, NVDA, IWM for ADX/MACD/RSI/VWAP/Volume confluence signals.',
     ax:Math.round(W*0.28), ay:ROW2_Y,
     settings:[{label:'ADX min',key:'adx_min',val:'25'},{label:'ADX max',key:'adx_max',val:'48'},{label:'Volume mult',key:'vol',val:'1.5x'},{label:'BB expand',key:'bb',val:'yes'}]
   },
-  { id:'risk', name:'Risk Manager',   color:'#7fc87f', state:'active',
-    sheet:'accountant', tint:null,
-    msg:'Balance OK\nFloor: $261.36',
-    role:'Monitors balance, VIX filter, drawdown limits, trailing floor, and kill switch.',
+  { id:'risk', name:'Risk Manager',   color:'#7fc87f', state:'active',   sheet:'accountant', tint:null,
+    msg:'connecting...', role:'Monitors balance, VIX filter, drawdown limits, trailing floor, and kill switch.',
     ax:Math.round(W*0.50), ay:ROW1_Y,
     settings:[{label:'Risk per trade',key:'r',val:'35%'},{label:'VIX min',key:'vmin',val:'16'},{label:'VIX max',key:'vmax',val:'25'},{label:'Max daily loss',key:'ml',val:'15%'}]
   },
-  { id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping',
-    sheet:'boss', tint:'purple',
-    msg:'Standing by\nNo signal yet',
-    role:'Places LIMIT orders on Schwab when signal confirmed. Picks best contract by delta, DTE and volume.',
+  { id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping', sheet:'boss',       tint:'purple',
+    msg:'connecting...', role:'Places LIMIT orders on Schwab when signal confirmed.',
     ax:Math.round(W*0.70), ay:ROW2_Y,
     settings:[{label:'DTE min',key:'dmin',val:'0'},{label:'DTE max',key:'dmax',val:'3'},{label:'Delta min',key:'delmin',val:'0.10'},{label:'Min vol',key:'mv',val:'25'}]
   },
-  { id:'exit', name:'Exit Monitor',   color:'#ff9f7f', state:'sleeping',
-    sheet:'accountant', tint:'orange',
-    msg:'No open\npositions',
-    role:'Watches open positions and fires partial exits at profit targets or stop loss at -40%.',
+  { id:'exit', name:'Exit Monitor',   color:'#ff9f7f', state:'sleeping', sheet:'accountant', tint:'orange',
+    msg:'connecting...', role:'Watches open positions and fires partial exits or stop loss.',
     ax:Math.round(W*0.88), ay:ROW1_Y,
     settings:[{label:'Stop loss',key:'sl',val:'40%'},{label:'Exit 1',key:'e1',val:'+20%'},{label:'Exit 2',key:'e2',val:'+40%'},{label:'Exit 3',key:'e3',val:'+75%'}]
   },
 ];
 
+// Tinted canvases
+const TINTED = {};
+let tintsDone = false;
+function buildTints() {
+  if(tintsDone || !IMGS.boss.naturalWidth || !IMGS.accountant.naturalWidth) return;
+  tintsDone = true;
+  const mk = (img, w, h, r, g, b) => {
+    const c = document.createElement('canvas'); c.width=w; c.height=h;
+    const x = c.getContext('2d');
+    x.drawImage(img,0,0);
+    x.globalCompositeOperation='source-atop';
+    x.fillStyle=`rgba(${r},${g},${b},0.4)`;
+    x.fillRect(0,0,w,h);
+    return c;
+  };
+  TINTED.purple = mk(IMGS.boss, 320, 80, 120,80,200);
+  TINTED.orange = mk(IMGS.accountant, 320, 80, 220,120,40);
+}
+
+// Live data fetch
+const logLines = ['▶ connecting to bullishbot...','','',''];
+function pushLog(text, cls='') {
+  logLines.unshift({text, cls});
+  if(logLines.length>4) logLines.pop();
+  logLines.forEach((l,i)=>{
+    const el=document.getElementById('l'+i);
+    if(!el) return;
+    el.textContent = typeof l==='string' ? l : l.text;
+    el.className = 'log-entry '+(typeof l==='string' ? '' : l.cls);
+  });
+}
+
+function updateFromStatus(d) {
+  // HUD
+  document.getElementById('s-bal').textContent = `$${d.balance.toFixed(2)}`;
+  document.getElementById('s-bal').className = d.balance < d.floor ? 'danger' : '';
+  const vixOk = d.vix_ok;
+  document.getElementById('s-vix').textContent = `${d.vix.toFixed(1)} ${vixOk?'✓':'✗'}`;
+  document.getElementById('s-vix').className = vixOk ? '' : 'warn';
+  document.getElementById('s-trades').textContent = d.trades_today;
+  document.getElementById('s-open').textContent = d.open_positions;
+  document.getElementById('s-floor').textContent = `$${d.floor.toFixed(2)}`;
+  document.getElementById('s-mode').textContent = d.mode;
+  document.getElementById('s-time').textContent = d.timestamp;
+  document.getElementById('sync-dot').className = 'live';
+
+  // Update agent states based on live data
+  const hasOpen = d.open_positions > 0;
+  const marketOpen = (() => {
+    const ts = d.timestamp;
+    const m = ts.match(/(\d+):(\d+):\d+ ET/);
+    if(!m) return false;
+    const h=parseInt(m[1]), mn=parseInt(m[2]);
+    const mins = h*60+mn;
+    return mins >= 570 && mins <= 930; // 9:30 AM to 3:30 PM
+  })();
+
+  // ICT agent
+  const ict = agents.find(a=>a.id==='ict');
+  ict.state = marketOpen ? 'active' : 'sleeping';
+  ict.msg = marketOpen ? 'Scanning SPY & QQQ\nfor key levels' : 'Market closed\nsleeping...';
+
+  // IND agent
+  const ind = agents.find(a=>a.id==='ind');
+  ind.state = marketOpen ? 'active' : 'sleeping';
+  ind.msg = marketOpen ? 'Scanning TSLA\nNVDA & IWM' : 'Market closed\nsleeping...';
+
+  // Risk manager — always active when bot running
+  const risk = agents.find(a=>a.id==='risk');
+  risk.state = d.kill_switch ? 'alert' : 'active';
+  risk.msg = d.kill_switch ? 'KILL SWITCH\nACTIVE!' : `Balance $${d.balance.toFixed(2)}\nFloor: $${d.floor.toFixed(2)}`;
+
+  // Order executor
+  const exec = agents.find(a=>a.id==='exec');
+  exec.state = hasOpen ? 'active' : 'sleeping';
+  exec.msg = hasOpen ? `${d.open_positions} position(s)\nopen` : 'Standing by\nNo signal yet';
+
+  // Exit monitor
+  const exit = agents.find(a=>a.id==='exit');
+  exit.state = hasOpen ? 'active' : 'sleeping';
+  exit.msg = hasOpen ? `Monitoring\n${d.open_positions} position(s)` : 'No open\npositions';
+
+  // Update bubbles
+  updateBubbles();
+
+  // Log
+  pushLog(`▶ ${d.timestamp} — BAL $${d.balance.toFixed(2)} | TRADES ${d.trades_today} | VIX ${d.vix.toFixed(1)}`, 'signal');
+}
+
+async function fetchStatus() {
+  try {
+    const res = await fetch(STATUS_URL + '?t=' + Date.now());
+    const d = await res.json();
+    updateFromStatus(d);
+  } catch(e) {
+    pushLog('▶ connection lost — retrying...', 'warn');
+    document.getElementById('sync-dot').className = '';
+  }
+}
+
+fetchStatus();
+setInterval(fetchStatus, 30000);
+
+// Canvas setup
 const fcEl = document.getElementById('fc');
 const scEl = document.getElementById('sc');
 fcEl.width = scEl.width = W;
@@ -183,64 +256,32 @@ const sctx = scEl.getContext('2d');
 sctx.imageSmoothingEnabled = false;
 fctx.imageSmoothingEnabled = false;
 
-// Build tinted canvases after images load
-let tintsDone = false;
-function buildTints() {
-  if(tintsDone) return;
-  if(!IMGS.boss.naturalWidth || !IMGS.accountant.naturalWidth) return;
-  tintsDone = true;
-
-  // Purple tint for Order Executor (boss sheet)
-  const bossOff = document.createElement('canvas');
-  bossOff.width = 320; bossOff.height = 80;
-  const bctx = bossOff.getContext('2d');
-  bctx.drawImage(IMGS.boss, 0, 0);
-  bctx.globalCompositeOperation = 'source-atop';
-  bctx.fillStyle = 'rgba(120,80,200,0.35)';
-  bctx.fillRect(0,0,320,80);
-  TINTED.purple = bossOff;
-
-  // Orange tint for Exit Monitor (accountant sheet)
-  const accOff = document.createElement('canvas');
-  accOff.width = 320; accOff.height = 80;
-  const actx = accOff.getContext('2d');
-  actx.drawImage(IMGS.accountant, 0, 0);
-  actx.globalCompositeOperation = 'source-atop';
-  actx.fillStyle = 'rgba(220,120,40,0.35)';
-  actx.fillRect(0,0,320,80);
-  TINTED.orange = accOff;
-}
-
 function drawFloor() {
-  fctx.fillStyle = '#0f0d08';
-  fctx.fillRect(0,0,W,H);
-  const ts = 32;
-  for(let x=0; x<W; x+=ts) {
-    for(let y=56; y<H; y+=ts) {
-      fctx.fillStyle = ((Math.floor(x/ts)+Math.floor(y/ts))%2===0) ? '#1c1810' : '#201c12';
-      fctx.fillRect(x,y,ts,ts);
-    }
+  fctx.fillStyle='#0f0d08'; fctx.fillRect(0,0,W,H);
+  const ts=32;
+  for(let x=0;x<W;x+=ts) for(let y=56;y<H;y+=ts) {
+    fctx.fillStyle=((Math.floor(x/ts)+Math.floor(y/ts))%2===0)?'#1c1810':'#201c12';
+    fctx.fillRect(x,y,ts,ts);
   }
   fctx.fillStyle='#100e08'; fctx.fillRect(0,0,W,57);
   fctx.fillStyle='#2a2416'; fctx.fillRect(0,55,W,2);
   [[50,6],[160,6],[W/2-28,6],[W-210,6],[W-100,6]].forEach(([wx,wy])=>{
     fctx.fillStyle='#081828'; fctx.fillRect(wx,wy,50,44);
-    fctx.fillStyle='#1a4a6a'; fctx.globalAlpha=0.3;
-    fctx.fillRect(wx+2,wy+2,46,40); fctx.globalAlpha=1;
-    fctx.strokeStyle='#223344'; fctx.lineWidth=1.5;
-    fctx.strokeRect(wx,wy,50,44);
-    fctx.beginPath();
-    fctx.moveTo(wx+25,wy); fctx.lineTo(wx+25,wy+44);
+    fctx.fillStyle='#1a4a6a'; fctx.globalAlpha=0.3; fctx.fillRect(wx+2,wy+2,46,40); fctx.globalAlpha=1;
+    fctx.strokeStyle='#223344'; fctx.lineWidth=1.5; fctx.strokeRect(wx,wy,50,44);
+    fctx.beginPath(); fctx.moveTo(wx+25,wy); fctx.lineTo(wx+25,wy+44);
     fctx.moveTo(wx,wy+22); fctx.lineTo(wx+50,wy+22);
     fctx.strokeStyle='#162030'; fctx.lineWidth=1; fctx.stroke();
   });
-  fctx.fillStyle='#081408'; fctx.fillRect(W/2-120,3,240,50);
-  fctx.strokeStyle='#1a4a1a'; fctx.lineWidth=1;
-  fctx.strokeRect(W/2-120,3,240,50);
+  // Ticker board
+  fctx.fillStyle='#081408'; fctx.fillRect(W/2-130,3,260,50);
+  fctx.strokeStyle='#1a4a1a'; fctx.lineWidth=1; fctx.strokeRect(W/2-130,3,260,50);
   fctx.font='bold 9px monospace'; fctx.textAlign='center';
-  fctx.fillStyle='#00cc44'; fctx.fillText('SPY $737  QQQ $718  IWM $296',W/2,18);
-  fctx.fillStyle='#3a7a3a'; fctx.fillText('TSLA $386  NVDA $202  VIX 19.1',W/2,30);
-  fctx.fillStyle='#f0b429'; fctx.fillText('● SCANNING — NO SIGNAL CONFIRMED',W/2,44);
+  fctx.fillStyle='#00cc44'; fctx.fillText('SPY  QQQ  IWM  TSLA  NVDA',W/2,18);
+  const bal = document.getElementById('s-bal').textContent;
+  const vix = document.getElementById('s-vix').textContent;
+  fctx.fillStyle='#3a7a3a'; fctx.fillText(`Balance: ${bal}   VIX: ${vix}`,W/2,31);
+  fctx.fillStyle='#f0b429'; fctx.fillText('● BULLISHBOT V2 — LIVE',W/2,44);
   fctx.textAlign='left';
   [[30,H-90],[W-50,H-90]].forEach(([px,py])=>{
     fctx.fillStyle='#2a1a08'; fctx.fillRect(px+5,py+16,8,10);
@@ -250,144 +291,106 @@ function drawFloor() {
   });
 }
 
-let tick = 0;
-
+let tick=0;
 function drawAgents() {
   buildTints();
   sctx.clearRect(0,0,W,H);
-  const sorted = [...agents].sort((a,b)=>a.ay-b.ay);
-
+  const sorted=[...agents].sort((a,b)=>a.ay-b.ay);
   sorted.forEach((a,i)=>{
-    const s = SHEETS[a.sheet];
-    const bob = a.state==='sleeping' ? 0 : Math.sin(tick*0.04+i)*1.5;
-    const ax = a.ax;
-    const ay = a.ay + bob;
-    const dx = ax - SW/2;
-    const dy = ay - SW/2;
-
-    // pick source: frame 0 only (static — no multi-frame bug)
-    const srcFrame = 0;
-    const srcX = srcFrame * s.fw;
-    const srcY = 0;
-
-    // choose image source — tinted or original
-    let src = IMGS[a.sheet];
-    if(a.tint && TINTED[a.tint]) src = TINTED[a.tint];
-
-    if(src && (src.naturalWidth > 0 || src instanceof HTMLCanvasElement)) {
-      sctx.globalAlpha = a.state==='sleeping' ? 0.45 : 1;
-      sctx.drawImage(src, srcX, srcY, s.fw, s.fh, dx, dy, SW, SH);
-      sctx.globalAlpha = 1;
-    }
-
-    // status dot
-    if(a.state !== 'sleeping') {
-      const pulse = 2.5 + Math.abs(Math.sin(tick*0.06+i))*2.5;
-      sctx.fillStyle = a.state==='alert' ? '#f0b429' : '#7fc87f';
-      sctx.beginPath();
-      sctx.arc(dx+SW+2, dy+4, pulse, 0, Math.PI*2);
-      sctx.fill();
-    }
-
-    // Z for sleeping
-    if(a.state==='sleeping') {
-      const zOff = ((tick*0.006)+i*0.5)%1;
-      sctx.globalAlpha = Math.max(0,1-zOff);
-      sctx.fillStyle='#888';
-      sctx.font='bold 12px monospace';
-      sctx.fillText('z', ax+SW*0.25, dy-zOff*16);
+    const s=SHEETS[a.sheet];
+    const bob=a.state==='sleeping'?0:Math.sin(tick*0.04+i)*1.5;
+    const ax=a.ax, ay=a.ay+bob;
+    const dx=ax-SW/2, dy=ay-SW/2;
+    let src=IMGS[a.sheet];
+    if(a.tint&&TINTED[a.tint]) src=TINTED[a.tint];
+    if(src&&(src.naturalWidth>0||src instanceof HTMLCanvasElement)){
+      sctx.globalAlpha=a.state==='sleeping'?0.4:1;
+      sctx.drawImage(src,0,0,s.fw,s.fh,dx,dy,SW,SH);
       sctx.globalAlpha=1;
     }
-
-    // name label
-    const label = a.name.toUpperCase();
-    const lw = label.length*5.5+12;
-    const labelY = dy+SW+6;
-    sctx.fillStyle='rgba(0,0,0,0.85)';
-    sctx.fillRect(ax-lw/2, labelY, lw, 13);
-    sctx.fillStyle = a.state==='sleeping' ? '#555' : a.color;
-    sctx.font='7px monospace';
-    sctx.textAlign='center';
-    sctx.fillText(label, ax, labelY+9);
-    sctx.textAlign='left';
+    if(a.state!=='sleeping'){
+      const pulse=2.5+Math.abs(Math.sin(tick*0.06+i))*2.5;
+      sctx.fillStyle=a.state==='alert'?'#ff4444':'#7fc87f';
+      sctx.beginPath(); sctx.arc(dx+SW+2,dy+4,pulse,0,Math.PI*2); sctx.fill();
+    }
+    if(a.state==='sleeping'){
+      const zOff=((tick*0.006)+i*0.5)%1;
+      sctx.globalAlpha=Math.max(0,1-zOff);
+      sctx.fillStyle='#888'; sctx.font='bold 12px monospace';
+      sctx.fillText('z',ax+SW*0.25,dy-zOff*16); sctx.globalAlpha=1;
+    }
+    const label=a.name.toUpperCase();
+    const lw=label.length*5.5+12;
+    const labelY=dy+SW+6;
+    sctx.fillStyle='rgba(0,0,0,0.85)'; sctx.fillRect(ax-lw/2,labelY,lw,13);
+    sctx.fillStyle=a.state==='sleeping'?'#555':a.color;
+    sctx.font='7px monospace'; sctx.textAlign='center';
+    sctx.fillText(label,ax,labelY+9); sctx.textAlign='left';
   });
-
   tick++;
 }
 
-const bubbleEls = {};
-function initBubbles() {
-  const world = document.getElementById('world');
-  agents.forEach(a => {
-    const b = document.createElement('div');
-    b.className='speech-bubble';
-    b.id='bub-'+a.id;
-    b.innerHTML = a.msg.replace('\n','<br>');
-    world.appendChild(b);
-    bubbleEls[a.id]=b;
+const bubbleEls={};
+function initBubbles(){
+  const world=document.getElementById('world');
+  agents.forEach(a=>{
+    const b=document.createElement('div');
+    b.className='speech-bubble'; b.id='bub-'+a.id;
+    b.innerHTML=a.msg.replace('\n','<br>');
+    world.appendChild(b); bubbleEls[a.id]=b;
   });
 }
 
-function updateBubbles() {
-  agents.forEach(a => {
-    const b = bubbleEls[a.id];
-    if(!b) return;
-    const topY = a.ay - SW/2;
-    const bw = 120;
-    b.style.left = Math.max(5, Math.min(W-bw-5, a.ax-bw/2)) + 'px';
-    b.style.top = Math.max(60, topY-52) + 'px';
+function updateBubbles(){
+  agents.forEach(a=>{
+    const b=bubbleEls[a.id]; if(!b) return;
+    b.innerHTML=a.msg.replace('\n','<br>');
+    const bw=130;
+    b.style.left=Math.max(5,Math.min(W-bw-5,a.ax-bw/2))+'px';
+    b.style.top=Math.max(60,a.ay-SW/2-54)+'px';
   });
 }
 
-scEl.addEventListener('click', function(e){
-  const rect = scEl.getBoundingClientRect();
-  const mx = (e.clientX-rect.left)*(W/rect.width);
-  const my = (e.clientY-rect.top)*(H/rect.height);
-  agents.forEach(a => {
-    const dx = a.ax-SW/2, dy = a.ay-SW/2;
-    if(mx>=dx-10 && mx<=dx+SW+10 && my>=dy-10 && my<=dy+SW+30){
-      openPanel(a);
-    }
+scEl.addEventListener('click',function(e){
+  const rect=scEl.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(W/rect.width);
+  const my=(e.clientY-rect.top)*(H/rect.height);
+  agents.forEach(a=>{
+    const dx=a.ax-SW/2,dy=a.ay-SW/2;
+    if(mx>=dx-10&&mx<=dx+SW+10&&my>=dy-10&&my<=dy+SW+30) openPanel(a);
   });
 });
 
 function openPanel(a){
-  document.getElementById('p-title').textContent = a.name;
-  const sc_ = {active:'s-active',alert:'s-alert',sleeping:'s-sleep'}[a.state];
-  const st_ = {active:'● active',alert:'⚠ alert',sleeping:'○ sleeping'}[a.state];
-  let html = `<div style="color:${a.color};font-size:13px;margin-bottom:10px;">${a.name} <span class="status-pill ${sc_}">${st_}</span></div>
+  document.getElementById('p-title').textContent=a.name;
+  const sc_={active:'s-active',alert:'s-alert',sleeping:'s-sleep'}[a.state];
+  const st_={active:'● active',alert:'⚠ alert',sleeping:'○ sleeping'}[a.state];
+  let html=`<div style="color:${a.color};font-size:13px;margin-bottom:10px;">${a.name} <span class="status-pill ${sc_}">${st_}</span></div>
   <div class="panel-bio">${a.role}</div>
   <div class="section-title">last action</div>
   <div class="last-action">${a.msg.replace('\n',' — ')}</div>
   <div class="section-title">settings</div>`;
-  a.settings.forEach(s => {
-    html += `<div class="panel-row"><span class="panel-label">${s.label}</span><input class="panel-input" value="${s.val}" data-key="${s.key}"></div>`;
+  a.settings.forEach(s=>{
+    html+=`<div class="panel-row"><span class="panel-label">${s.label}</span><input class="panel-input" value="${s.val}" data-key="${s.key}"></div>`;
   });
-  html += `<button class="panel-save" onclick="savePanel('${a.id}')">▶ save changes</button>`;
-  document.getElementById('p-content').innerHTML = html;
+  html+=`<button class="panel-save" onclick="savePanel('${a.id}')">▶ save changes</button>`;
+  document.getElementById('p-content').innerHTML=html;
   document.getElementById('panel-overlay').classList.add('open');
 }
 
-function closePanel(){ document.getElementById('panel-overlay').classList.remove('open'); }
+function closePanel(){document.getElementById('panel-overlay').classList.remove('open');}
 
 function savePanel(id){
-  const a = agents.find(x=>x.id===id);
+  const a=agents.find(x=>x.id===id);
   document.querySelectorAll('.panel-input').forEach(inp=>{
-    const s = a.settings.find(x=>x.key===inp.dataset.key);
-    if(s) s.val = inp.value;
+    const s=a.settings.find(x=>x.key===inp.dataset.key);
+    if(s) s.val=inp.value;
   });
-  document.getElementById('l0').textContent = `▶ ${a.name} settings saved`;
-  document.getElementById('l0').className = 'log-entry signal';
+  pushLog(`▶ ${a.name} settings updated`,'signal');
   closePanel();
 }
 
-function loop(){
-  drawFloor();
-  drawAgents();
-  updateBubbles();
-  requestAnimationFrame(loop);
-}
-
+function loop(){ drawFloor(); drawAgents(); updateBubbles(); requestAnimationFrame(loop); }
 initBubbles();
 loop();
 </script>
