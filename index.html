@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BullishBot HQ</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; image-rendering:pixelated; }
+* { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a0a; font-family:monospace; overflow:hidden; }
-
 #hud {
   position:fixed; top:0; left:0; right:0; height:44px;
   background:rgba(0,0,0,0.95); border-bottom:2px solid #1a4a1a;
@@ -18,101 +17,69 @@ body { background:#0a0a0a; font-family:monospace; overflow:hidden; }
 #hud-stats { display:flex; gap:16px; }
 .hstat { font-size:10px; color:#3a6a3a; }
 .hstat span { color:#7fc87f; }
-
-#world {
-  position:fixed; top:44px; left:0; right:0; bottom:60px;
-  overflow:hidden;
-}
-#floor-canvas { position:absolute; top:0; left:0; }
-#sprite-canvas { position:absolute; top:0; left:0; cursor:pointer; }
-
+#world { position:fixed; top:44px; left:0; right:0; bottom:60px; overflow:hidden; }
+canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rendering:crisp-edges; }
 .speech-bubble {
   position:absolute; background:#fff; border:2px solid #000;
-  border-radius:4px; padding:4px 7px; font-size:9px; color:#000;
-  pointer-events:none; z-index:50; line-height:1.4; max-width:130px;
+  border-radius:4px; padding:5px 8px; font-size:9px; color:#000;
+  pointer-events:none; z-index:50; line-height:1.4; max-width:140px;
   box-shadow:2px 2px 0 #000;
 }
 .speech-bubble::after {
   content:''; position:absolute; bottom:-8px; left:10px;
   border:4px solid transparent; border-top-color:#000;
 }
-.agent-label {
-  position:absolute; font-size:8px; color:#7fc87f;
-  text-align:center; pointer-events:none; z-index:50;
-  background:rgba(0,0,0,0.7); padding:1px 4px; border-radius:2px;
-}
-
 #log-bar {
   position:fixed; bottom:0; left:0; right:0; height:60px;
   background:rgba(0,0,0,0.95); border-top:2px solid #1a4a1a;
-  padding:6px 12px; overflow:hidden; z-index:100;
+  padding:6px 12px; z-index:100;
 }
 .log-entry { font-size:9px; color:#3a6a3a; padding:1px 0; }
 .log-entry.signal { color:#7fc87f; }
 .log-entry.warn { color:#f0b429; }
-
 #panel-overlay {
   display:none; position:fixed; top:44px; left:0; right:0; bottom:60px;
   background:rgba(0,8,0,0.97); z-index:200; padding:20px; overflow-y:auto;
 }
 #panel-overlay.open { display:block; }
-.panel-header {
-  display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:16px; border-bottom:1px solid #1a4a1a; padding-bottom:10px;
-}
+.panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; border-bottom:1px solid #1a4a1a; padding-bottom:10px; }
 .panel-title { color:#7fc87f; font-size:14px; }
-.panel-close {
-  background:#1a3a1a; border:1px solid #2d5a2d; color:#7fc87f;
-  font-size:11px; padding:4px 10px; cursor:pointer; border-radius:3px; font-family:monospace;
-}
+.panel-close { background:#1a3a1a; border:1px solid #2d5a2d; color:#7fc87f; font-size:11px; padding:4px 10px; cursor:pointer; border-radius:3px; font-family:monospace; }
 .panel-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 .panel-label { color:#5a9a5a; font-size:11px; }
-.panel-input {
-  background:#0a1a0a; border:1px solid #2d5a2d; color:#7fc87f;
-  font-size:11px; padding:4px 8px; width:110px; text-align:right;
-  font-family:monospace; border-radius:3px;
-}
-.panel-save {
-  background:#2d5a2d; border:1px solid #5a9a5a; color:#7fc87f;
-  font-size:12px; padding:8px; width:100%; cursor:pointer;
-  font-family:monospace; border-radius:3px; margin-top:10px;
-}
+.panel-input { background:#0a1a0a; border:1px solid #2d5a2d; color:#7fc87f; font-size:11px; padding:4px 8px; width:110px; text-align:right; font-family:monospace; border-radius:3px; }
+.panel-save { background:#2d5a2d; border:1px solid #5a9a5a; color:#7fc87f; font-size:12px; padding:8px; width:100%; cursor:pointer; font-family:monospace; border-radius:3px; margin-top:10px; }
 .panel-bio { color:#5a9a5a; font-size:10px; line-height:1.6; margin-bottom:14px; padding:8px; background:#0a1a0a; border-radius:3px; border:1px solid #1a3a1a; }
 .section-title { color:#3a6a3a; font-size:9px; margin-bottom:8px; margin-top:14px; border-bottom:1px solid #0a2a0a; padding-bottom:3px; }
 .last-action { color:#7fc87f; font-size:10px; padding:6px 8px; background:#0a1a0a; border:1px solid #1a3a1a; border-radius:3px; margin-bottom:14px; }
-.status-pill {
-  display:inline-block; padding:2px 8px; border-radius:3px; font-size:9px; margin-left:8px;
-}
+.status-pill { display:inline-block; padding:2px 8px; border-radius:3px; font-size:9px; margin-left:8px; }
 .s-active { background:#1a3a1a; color:#7fc87f; border:1px solid #2d5a2d; }
-.s-alert  { background:#3a2a0a; color:#f0b429; border:1px solid #5a3a1a; }
-.s-sleep  { background:#111; color:#555; border:1px solid #222; }
+.s-alert { background:#3a2a0a; color:#f0b429; border:1px solid #5a3a1a; }
+.s-sleep { background:#111; color:#555; border:1px solid #222; }
+#debug { position:fixed; top:50px; left:10px; color:#f00; font-size:9px; z-index:999; font-family:monospace; }
 </style>
 </head>
 <body>
-
 <div id="hud">
   <div id="hud-title">▶ BULLISHBOT HQ</div>
   <div id="hud-stats">
-    <div class="hstat">BAL: <span id="s-bal">$307.35</span></div>
-    <div class="hstat">VIX: <span id="s-vix">19.1 ✓</span></div>
-    <div class="hstat">TRADES: <span id="s-trades">0</span></div>
-    <div class="hstat">FLOOR: <span id="s-floor">$261.36</span></div>
-    <div class="hstat">MODE: <span id="s-mode">LIVE</span></div>
+    <div class="hstat">BAL: <span>$307.35</span></div>
+    <div class="hstat">VIX: <span>19.1 ✓</span></div>
+    <div class="hstat">TRADES: <span>0</span></div>
+    <div class="hstat">FLOOR: <span>$261.36</span></div>
+    <div class="hstat">MODE: <span>LIVE</span></div>
   </div>
 </div>
-
 <div id="world">
-  <canvas id="floor-canvas"></canvas>
-  <canvas id="sprite-canvas"></canvas>
+  <canvas id="fc"></canvas>
+  <canvas id="sc"></canvas>
 </div>
-
 <div id="log-bar">
-  <div class="log-entry signal" id="l0">▶ bullishbot hq online</div>
-  <div class="log-entry" id="l1"></div>
-  <div class="log-entry warn" id="l2"></div>
-  <div class="log-entry" id="l3"></div>
+  <div class="log-entry signal" id="l0">▶ bullishbot hq online — all agents reporting</div>
+  <div class="log-entry warn" id="l1">▶ 13:09 ET — IND: TSLA ADX 54.0 out of range</div>
+  <div class="log-entry" id="l2">▶ 13:09 ET — ICT: SPY no directional bias</div>
+  <div class="log-entry" id="l3">▶ 13:09 ET — RISK: balance $307.35 healthy</div>
 </div>
-
 <div id="panel-overlay">
   <div class="panel-header">
     <div class="panel-title" id="p-title">Agent</div>
@@ -122,177 +89,103 @@ body { background:#0a0a0a; font-family:monospace; overflow:hidden; }
 </div>
 
 <script>
-const REPO = 'https://raw.githubusercontent.com/nauyaane/bullishbot-hq/main/Pixel_Office_32x32_v1.1/PNG';
+const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
 
 const agents = [
-  {
-    id:'ict', name:'ICT Agent', color:'#4a9aff', state:'active',
+  { id:'ict', name:'ICT Agent', color:'#4a9aff', state:'active',
     msg:'SPY @ $737 — not at key level',
-    role:'Scans SPY and QQQ every 60 seconds for ICT key levels, Fair Value Gaps, and 1-minute confirmation before firing a signal.',
-    spriteRow:0, seatSheet:'boss',
-    x:0.12, y:0.35,
-    settings:[
-      {label:'Tickers', key:'tickers', val:'SPY, QQQ'},
-      {label:'Window start', key:'ict_start', val:'10:00 AM ET'},
-      {label:'Window end', key:'ict_end', val:'3:30 PM ET'},
-      {label:'Min R:R ratio', key:'rr_min', val:'1.5'},
-    ]
+    role:'Scans SPY and QQQ every 60s for ICT key levels, Fair Value Gaps, and 1-minute confirmation.',
+    sheet:'boss', frames:4, x:0.12, y:0.32,
+    settings:[{label:'Tickers',key:'t',val:'SPY, QQQ'},{label:'Window start',key:'ws',val:'10:00 AM ET'},{label:'Window end',key:'we',val:'3:30 PM ET'},{label:'Min R:R',key:'rr',val:'1.5'}]
   },
-  {
-    id:'ind', name:'IND Agent', color:'#f0b429', state:'alert',
+  { id:'ind', name:'IND Agent', color:'#f0b429', state:'alert',
     msg:'TSLA ADX 54 — out of range!',
-    role:'Scans TSLA, NVDA, and IWM for ADX trend strength, MACD momentum, RSI levels, VWAP position, and volume confirmation.',
-    spriteRow:1, seatSheet:'accountant',
-    x:0.30, y:0.50,
-    settings:[
-      {label:'ADX min', key:'adx_min', val:'25'},
-      {label:'ADX max', key:'adx_max', val:'48'},
-      {label:'Volume multiplier', key:'vol_mult', val:'1.5x'},
-      {label:'BB expand required', key:'bb', val:'yes'},
-    ]
+    role:'Scans TSLA, NVDA, IWM for ADX/MACD/RSI/VWAP/Volume confluence signals.',
+    sheet:'accountant', frames:4, x:0.30, y:0.50,
+    settings:[{label:'ADX min',key:'adx_min',val:'25'},{label:'ADX max',key:'adx_max',val:'48'},{label:'Volume mult',key:'vol',val:'1.5x'},{label:'BB expand',key:'bb',val:'yes'}]
   },
-  {
-    id:'risk', name:'Risk Manager', color:'#7fc87f', state:'active',
+  { id:'risk', name:'Risk Manager', color:'#7fc87f', state:'active',
     msg:'Balance $307.35 — floor clear',
-    role:'Monitors account balance, VIX levels, daily loss limits, trailing floor, and the kill switch. Blocks trading if any safety condition is breached.',
-    spriteRow:2, seatSheet:'secretary',
-    x:0.50, y:0.35,
-    settings:[
-      {label:'Risk per trade', key:'risk', val:'35%'},
-      {label:'VIX min', key:'vix_min', val:'16'},
-      {label:'VIX max', key:'vix_max', val:'25'},
-      {label:'Max daily loss', key:'max_loss', val:'15%'},
-      {label:'Trail floor', key:'floor_pct', val:'85%'},
-    ]
+    role:'Monitors balance, VIX filter, drawdown limits, trailing floor, and kill switch.',
+    sheet:'secretary', frames:3, x:0.50, y:0.32,
+    settings:[{label:'Risk per trade',key:'r',val:'35%'},{label:'VIX min',key:'vmin',val:'16'},{label:'VIX max',key:'vmax',val:'25'},{label:'Max daily loss',key:'ml',val:'15%'}]
   },
-  {
-    id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping',
+  { id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping',
     msg:'Standing by — no signal yet',
-    role:'Places LIMIT buy orders on Schwab when a signal is confirmed. Selects the best option contract by delta, DTE, volume, and cost.',
-    spriteRow:3, seatSheet:'boss',
-    x:0.70, y:0.50,
-    settings:[
-      {label:'DTE min', key:'dte_min', val:'0'},
-      {label:'DTE max', key:'dte_max', val:'3'},
-      {label:'Delta min', key:'delta_min', val:'0.10'},
-      {label:'Delta max', key:'delta_max', val:'0.60'},
-      {label:'Min option volume', key:'opt_vol', val:'25'},
-      {label:'Limit buffer', key:'bps', val:'25bps'},
-    ]
+    role:'Places LIMIT orders on Schwab when signal confirmed. Picks best contract by delta, DTE and volume.',
+    sheet:'boss', frames:4, x:0.70, y:0.50,
+    settings:[{label:'DTE min',key:'dmin',val:'0'},{label:'DTE max',key:'dmax',val:'3'},{label:'Delta min',key:'delmin',val:'0.10'},{label:'Min vol',key:'mv',val:'25'}]
   },
-  {
-    id:'exit', name:'Exit Monitor', color:'#ff9f7f', state:'sleeping',
-    msg:'No open positions to watch',
-    role:'Watches all open positions and fires partial exits at profit targets, or a full stop loss if premium drops 40% from entry.',
-    spriteRow:4, seatSheet:'accountant',
-    x:0.88, y:0.35,
-    settings:[
-      {label:'Stop loss', key:'sl', val:'40%'},
-      {label:'Partial exit 1', key:'e1', val:'+20%'},
-      {label:'Partial exit 2', key:'e2', val:'+40%'},
-      {label:'Partial exit 3', key:'e3', val:'+75%'},
-    ]
+  { id:'exit', name:'Exit Monitor', color:'#ff9f7f', state:'sleeping',
+    msg:'No open positions',
+    role:'Watches open positions and fires partial exits at profit targets or stop loss at -40%.',
+    sheet:'accountant', frames:4, x:0.88, y:0.32,
+    settings:[{label:'Stop loss',key:'sl',val:'40%'},{label:'Exit 1',key:'e1',val:'+20%'},{label:'Exit 2',key:'e2',val:'+40%'},{label:'Exit 3',key:'e3',val:'+75%'}]
   },
 ];
 
-const logs = [
-  {t:'▶ 13:09 ET — ICT: SPY no directional bias', c:''},
-  {t:'▶ 13:09 ET — IND: TSLA ADX 54.0 out of range', c:'warn'},
-  {t:'▶ 13:09 ET — RISK: balance $307.35 healthy', c:'signal'},
-  {t:'▶ 13:09 ET — EXEC: standing by, no signal', c:''},
-];
+const SHEETS = {
+  secretary: { src: BASE+'/Characters/Seated_Characters/Secretary%20List.png', fw:80, fh:80 },
+  boss:      { src: BASE+'/Characters/Seated_Characters/Office%20Boss%20List.png', fw:80, fh:80 },
+  accountant:{ src: BASE+'/Characters/Seated_Characters/Accountant%20List.png', fw:80, fh:80 },
+};
 
-function renderLogs() {
-  logs.forEach((l,i) => {
-    const el = document.getElementById('l'+i);
-    if(el){ el.textContent=l.t; el.className='log-entry '+(l.c||''); }
-  });
-}
-renderLogs();
+const loaded = {};
+let loadedCount = 0;
+const totalImages = Object.keys(SHEETS).length;
+
+Object.entries(SHEETS).forEach(([key, s]) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => { loadedCount++; };
+  img.onerror = () => { console.error('Failed to load:', s.src); };
+  img.src = s.src;
+  loaded[key] = img;
+});
 
 const W = window.innerWidth;
 const H = window.innerHeight - 104;
-const SC = Math.max(1.5, Math.min(3, W/320));
+const SCALE = Math.max(2, Math.min(4, W / 200));
 
-const fc = document.getElementById('floor-canvas');
-const sc = document.getElementById('sprite-canvas');
-fc.width = sc.width = W;
-fc.height = sc.height = H;
-const fctx = fc.getContext('2d');
-const sctx = sc.getContext('2d');
+const fcEl = document.getElementById('fc');
+const scEl = document.getElementById('sc');
+fcEl.width = scEl.width = W;
+fcEl.height = scEl.height = H;
+const fctx = fcEl.getContext('2d');
+const sctx = scEl.getContext('2d');
 sctx.imageSmoothingEnabled = false;
 fctx.imageSmoothingEnabled = false;
-
-const imgs = {};
-const CHAR_IMG = new Image();
-CHAR_IMG.src = REPO + '/Characters/Characters.png';
-const SEAT_IMGS = {
-  secretary: new Image(),
-  boss: new Image(),
-  accountant: new Image(),
-};
-SEAT_IMGS.secretary.src = REPO + '/Characters/Seated_Characters/Secretary%20List.png';
-SEAT_IMGS.boss.src = REPO + '/Characters/Seated_Characters/Office%20Boss%20List.png';
-SEAT_IMGS.accountant.src = REPO + '/Characters/Seated_Characters/Accountant%20List.png';
-
-const ENV_IMG = new Image();
-ENV_IMG.src = REPO + '/Environment/Environment.png';
-const PROPS_IMG = new Image();
-PROPS_IMG.src = REPO + '/Props/Props.png';
-
-const CHAR_W = 40, CHAR_H = 64;
-const SEAT_W = 80, SEAT_H = 80;
-
-const SEAT_FRAMES = { secretary:3, boss:4, accountant:4 };
 
 function drawFloor() {
   fctx.fillStyle = '#0f0d08';
   fctx.fillRect(0,0,W,H);
-
-  const tileSize = 32 * SC;
-  for(let x=0; x<W; x+=tileSize) {
-    for(let y=55; y<H-30; y+=tileSize) {
-      const alt = (Math.floor(x/tileSize)+Math.floor(y/tileSize))%2===0;
-      fctx.fillStyle = alt ? '#1c1810' : '#201c12';
-      fctx.fillRect(x,y,tileSize,tileSize);
-      fctx.strokeStyle = '#141008';
-      fctx.lineWidth = 0.5;
-      fctx.strokeRect(x,y,tileSize,tileSize);
+  const ts = 32;
+  for(let x=0; x<W; x+=ts) {
+    for(let y=56; y<H-30; y+=ts) {
+      fctx.fillStyle = ((Math.floor(x/ts)+Math.floor(y/ts))%2===0) ? '#1c1810' : '#201c12';
+      fctx.fillRect(x,y,ts,ts);
     }
   }
+  fctx.fillStyle='#100e08'; fctx.fillRect(0,0,W,57);
+  fctx.fillStyle='#2a2416'; fctx.fillRect(0,55,W,2);
 
-  fctx.fillStyle = '#100e08';
-  fctx.fillRect(0,0,W,56);
-  fctx.fillStyle = '#2a2416';
-  fctx.fillRect(0,54,W,3);
-
-  const winPositions = [50,160,W/2-30,W-210,W-100];
-  winPositions.forEach(wx => {
-    fctx.fillStyle = '#081828';
-    fctx.fillRect(wx,6,50,44);
-    fctx.fillStyle = '#1a4a6a';
-    fctx.globalAlpha=0.35;
-    fctx.fillRect(wx+2,8,46,40);
-    fctx.globalAlpha=1;
-    fctx.strokeStyle='#223344';
-    fctx.lineWidth=1.5;
-    fctx.strokeRect(wx,6,50,44);
+  [[50,6],[160,6],[W/2-28,6],[W-210,6],[W-100,6]].forEach(([wx,wy])=>{
+    fctx.fillStyle='#081828'; fctx.fillRect(wx,wy,50,44);
+    fctx.fillStyle='#1a4a6a'; fctx.globalAlpha=0.3;
+    fctx.fillRect(wx+2,wy+2,46,40); fctx.globalAlpha=1;
+    fctx.strokeStyle='#223344'; fctx.lineWidth=1.5;
+    fctx.strokeRect(wx,wy,50,44);
     fctx.beginPath();
-    fctx.moveTo(wx+25,6); fctx.lineTo(wx+25,50);
-    fctx.moveTo(wx,28); fctx.lineTo(wx+50,28);
-    fctx.strokeStyle='#162030';
-    fctx.lineWidth=1;
-    fctx.stroke();
+    fctx.moveTo(wx+25,wy); fctx.lineTo(wx+25,wy+44);
+    fctx.moveTo(wx,wy+22); fctx.lineTo(wx+50,wy+22);
+    fctx.strokeStyle='#162030'; fctx.lineWidth=1; fctx.stroke();
   });
 
-  fctx.fillStyle='#081408';
-  fctx.fillRect(W/2-120,3,240,50);
-  fctx.strokeStyle='#1a4a1a';
-  fctx.lineWidth=1;
+  fctx.fillStyle='#081408'; fctx.fillRect(W/2-120,3,240,50);
+  fctx.strokeStyle='#1a4a1a'; fctx.lineWidth=1;
   fctx.strokeRect(W/2-120,3,240,50);
+  fctx.font='bold 9px monospace'; fctx.textAlign='center';
   fctx.fillStyle='#00cc44';
-  fctx.font='bold 9px monospace';
-  fctx.textAlign='center';
   fctx.fillText('SPY $737  QQQ $718  IWM $296',W/2,18);
   fctx.fillStyle='#3a7a3a';
   fctx.fillText('TSLA $386  NVDA $202  VIX 19.1',W/2,30);
@@ -300,70 +193,77 @@ function drawFloor() {
   fctx.fillText('● SCANNING — NO SIGNAL CONFIRMED',W/2,44);
   fctx.textAlign='left';
 
-  [[30,H-110],[30,H*0.42],[W-50,H-110],[W-50,H*0.42]].forEach(([px,py])=>{
+  [[30,H-100],[30,H*0.4],[W-46,H-100],[W-46,H*0.4]].forEach(([px,py])=>{
     fctx.fillStyle='#2a1a08'; fctx.fillRect(px+5,py+16,8,10);
     fctx.fillStyle='#1a3a08'; fctx.fillRect(px+1,py+9,14,8);
     fctx.fillStyle='#2a5a0a'; fctx.fillRect(px+3,py,10,10);
-    fctx.fillRect(px-3,py+4,8,8);
-    fctx.fillRect(px+11,py+4,8,8);
+    fctx.fillRect(px-3,py+4,8,8); fctx.fillRect(px+11,py+4,8,8);
   });
 }
 
-let frame=0;
+let frame = 0;
 
-function drawSprites() {
+function drawAgents() {
   sctx.clearRect(0,0,W,H);
   const t = frame/60;
 
   agents.forEach((a,i) => {
     const ax = a.x * W;
     const ay = a.y * H;
-    const bob = a.state==='sleeping' ? 0 : Math.sin(t*2+i)*1.5;
-    const seatImg = SEAT_IMGS[a.seatSheet];
-    const numFrames = SEAT_FRAMES[a.seatSheet];
-    const seatFrame = a.state==='sleeping' ? 0 : Math.floor(t*2+i*1.3) % numFrames;
+    const bob = a.state==='sleeping' ? 0 : Math.sin(t*2+i)*2;
+    const sheet = SHEETS[a.sheet];
+    const img = loaded[a.sheet];
+    const animFrame = a.state==='sleeping' ? 0 : Math.floor(t*2+i*1.7) % a.frames;
+    const dw = sheet.fw * SCALE;
+    const dh = sheet.fh * SCALE;
+    const dx = ax - dw/2;
+    const dy = ay - dh/2 + bob;
 
-    const dw = SEAT_W * SC * 0.9;
-    const dh = SEAT_H * SC * 0.9;
-
-    if(seatImg.complete) {
-      sctx.drawImage(
-        seatImg,
-        seatFrame * SEAT_W, 0, SEAT_W, SEAT_H,
-        ax - dw/2, ay + bob - dh*0.1,
-        dw, dh
-      );
+    if(img && img.complete && img.naturalWidth > 0) {
+      sctx.drawImage(img, animFrame*sheet.fw, 0, sheet.fw, sheet.fh, dx, dy, dw, dh);
+      if(a.state==='sleeping') {
+        sctx.globalAlpha=0.4;
+        sctx.fillStyle='#000';
+        sctx.fillRect(dx,dy,dw,dh);
+        sctx.globalAlpha=1;
+      }
     } else {
       sctx.fillStyle = a.state==='sleeping' ? '#333' : a.color;
-      sctx.globalAlpha = a.state==='sleeping'?0.4:0.8;
-      sctx.fillRect(ax-20,ay-20,40,40);
+      sctx.globalAlpha = a.state==='sleeping' ? 0.4 : 0.8;
+      sctx.fillRect(ax-30, ay-30, 60, 60);
       sctx.globalAlpha=1;
+      sctx.fillStyle='#fff';
+      sctx.font='8px monospace';
+      sctx.textAlign='center';
+      sctx.fillText(a.name[0], ax, ay+3);
+      sctx.textAlign='left';
     }
 
-    if(a.state==='active' || a.state==='alert') {
-      const pulse = 1.5 + Math.abs(Math.sin(t*3+i))*2;
+    if(a.state!=='sleeping') {
+      const pulse = 2 + Math.abs(Math.sin(t*3+i))*3;
       sctx.fillStyle = a.state==='alert' ? '#f0b429' : '#7fc87f';
       sctx.beginPath();
-      sctx.arc(ax+dw*0.35, ay-dh*0.55+bob, pulse, 0, Math.PI*2);
+      sctx.arc(ax+dw*0.4, dy+dh*0.1, pulse, 0, Math.PI*2);
       sctx.fill();
     }
 
     if(a.state==='sleeping') {
-      const zOff = ((t*0.4)+i*0.4)%1;
-      sctx.globalAlpha = Math.max(0,1-zOff);
-      sctx.fillStyle='#555';
-      sctx.font=`${10*SC/2}px monospace`;
-      sctx.fillText('z', ax+dw*0.4, ay-dh*0.4-zOff*18);
+      const zOff = ((t*0.5)+i*0.5)%1;
+      sctx.globalAlpha=Math.max(0,1-zOff);
+      sctx.fillStyle='#888';
+      sctx.font=`${Math.round(14*SCALE/3)}px monospace`;
+      sctx.fillText('z', ax+dw*0.45, dy+dh*0.2-zOff*20);
       sctx.globalAlpha=1;
     }
 
-    sctx.fillStyle='rgba(0,0,0,0.75)';
-    const lw = a.name.length*5+8;
-    sctx.fillRect(ax-lw/2, ay+dh*0.85, lw, 11);
-    sctx.fillStyle=a.state==='sleeping'?'#555':a.color;
+    const label = a.name.toUpperCase();
+    const lw = label.length*5+10;
+    sctx.fillStyle='rgba(0,0,0,0.8)';
+    sctx.fillRect(ax-lw/2, dy+dh+2, lw, 12);
+    sctx.fillStyle = a.state==='sleeping' ? '#555' : a.color;
     sctx.font='7px monospace';
     sctx.textAlign='center';
-    sctx.fillText(a.name.toUpperCase(), ax, ay+dh*0.85+8);
+    sctx.fillText(label, ax, dy+dh+11);
     sctx.textAlign='left';
   });
 
@@ -385,44 +285,43 @@ function initBubbles() {
 }
 
 function updateBubbles() {
-  const dw = SEAT_W*SC*0.9;
-  const dh = SEAT_H*SC*0.9;
   agents.forEach(a => {
+    const sheet = SHEETS[a.sheet];
+    const dw = sheet.fw*SCALE;
+    const dh = sheet.fh*SCALE;
     const ax=a.x*W, ay=a.y*H;
+    const dy=ay-dh/2;
     const b=bubbleEls[a.id];
     if(b){
-      b.style.left=(ax-65)+'px';
-      b.style.top=(ay-dh*0.55-52)+'px';
+      b.style.left=Math.max(5,ax-70)+'px';
+      b.style.top=Math.max(10,dy-55)+'px';
     }
   });
 }
 
-sc.addEventListener('click',function(e){
-  const rect=sc.getBoundingClientRect();
+scEl.addEventListener('click',function(e){
+  const rect=scEl.getBoundingClientRect();
   const mx=(e.clientX-rect.left)*(W/rect.width);
   const my=(e.clientY-rect.top)*(H/rect.height);
-  const dw=SEAT_W*SC*0.9, dh=SEAT_H*SC*0.9;
   agents.forEach(a=>{
+    const sheet=SHEETS[a.sheet];
+    const dw=sheet.fw*SCALE, dh=sheet.fh*SCALE;
     const ax=a.x*W, ay=a.y*H;
-    if(mx>=ax-dw/2&&mx<=ax+dw/2&&my>=ay-dh&&my<=ay+dh){
+    if(mx>=ax-dw/2&&mx<=ax+dw/2&&my>=ay-dh&&my<=ay+dh+20){
       openPanel(a);
     }
   });
 });
 
-function openPanel(a) {
+function openPanel(a){
   document.getElementById('p-title').textContent=a.name;
-  const sc_={active:'s-active',alert:'s-alert',sleeping:'s-sleep'}[a.state]||'s-active';
-  const st_={active:'● active',alert:'⚠ alert',sleeping:'○ sleeping'}[a.state]||'active';
-  let html=`
-    <div style="color:${a.color};font-size:13px;margin-bottom:10px;">
-      ${a.name} <span class="status-pill ${sc_}">${st_}</span>
-    </div>
-    <div class="panel-bio">${a.role}</div>
-    <div class="section-title">last action</div>
-    <div class="last-action">${a.msg}</div>
-    <div class="section-title">settings</div>
-  `;
+  const sc_={active:'s-active',alert:'s-alert',sleeping:'s-sleep'}[a.state];
+  const st_={active:'● active',alert:'⚠ alert',sleeping:'○ sleeping'}[a.state];
+  let html=`<div style="color:${a.color};font-size:13px;margin-bottom:10px;">${a.name} <span class="status-pill ${sc_}">${st_}</span></div>
+  <div class="panel-bio">${a.role}</div>
+  <div class="section-title">last action</div>
+  <div class="last-action">${a.msg}</div>
+  <div class="section-title">settings</div>`;
   a.settings.forEach(s=>{
     html+=`<div class="panel-row"><span class="panel-label">${s.label}</span><input class="panel-input" value="${s.val}" data-key="${s.key}"></div>`;
   });
@@ -431,9 +330,7 @@ function openPanel(a) {
   document.getElementById('panel-overlay').classList.add('open');
 }
 
-function closePanel(){
-  document.getElementById('panel-overlay').classList.remove('open');
-}
+function closePanel(){document.getElementById('panel-overlay').classList.remove('open');}
 
 function savePanel(id){
   const a=agents.find(x=>x.id===id);
@@ -441,32 +338,20 @@ function savePanel(id){
     const s=a.settings.find(x=>x.key===inp.dataset.key);
     if(s) s.val=inp.value;
   });
-  logs.unshift({t:`▶ ${a.name} settings saved`,c:'signal'});
-  if(logs.length>4) logs.pop();
-  renderLogs();
+  document.getElementById('l0').textContent=`▶ ${a.name} settings saved`;
+  document.getElementById('l0').className='log-entry signal';
   closePanel();
 }
 
 function loop(){
   drawFloor();
-  drawSprites();
+  drawAgents();
   updateBubbles();
   requestAnimationFrame(loop);
 }
 
 initBubbles();
 loop();
-
-setTimeout(()=>{
-  logs.unshift({t:'▶ 13:11 ET — IND: NVDA RSI 10.4 extreme oversold',c:'warn'});
-  if(logs.length>4) logs.pop();
-  renderLogs();
-},4000);
-setTimeout(()=>{
-  logs.unshift({t:'▶ 13:12 ET — ICT: QQQ bias conflict, monitoring',c:''});
-  if(logs.length>4) logs.pop();
-  renderLogs();
-},9000);
 </script>
 </body>
 </html>
