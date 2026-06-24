@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-06-23 13:25:47 ET",
+  "balance": 0.0,
+  "peak": 307.48,
+  "floor": 261.36,
+  "mode": "AGGRESSIVE",
+  "kill_switch": false,
+  "frozen": false,
+  "vix": 19.03,
+  "vix_min": 16.0,
+  "vix_max": 25.0,
+  "vix_ok": true,
+  "trades_today": 0,
+  "losses_today": 0,
+  "open_positions": 0,
+  "positions": {}
+}
