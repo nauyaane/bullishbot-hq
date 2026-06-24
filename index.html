@@ -97,7 +97,7 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 
 <script>
 const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
-const STATUS_URL = 'https://raw.githubusercontent.com/nauyaane/bullishbot-hq/main/bot_status.json';
+const STATUS_URL = 'https://api.github.com/repos/nauyaane/bullishbot-hq/contents/bot_status.json';
 
 const SHEETS = {
   boss:       { url: BASE+'/Characters/Seated_Characters/Office%20Boss%20List.png',  fw:80, fh:80, frames:4 },
@@ -221,8 +221,9 @@ function updateFromStatus(d) {
 
 async function fetchStatus() {
   try {
-    const res = await fetch(STATUS_URL + '?t=' + Date.now());
-    const d = await res.json();
+    const res = await fetch(STATUS_URL, {headers:{'Accept':'application/vnd.github.v3+json','Cache-Control':'no-cache'}});
+    const meta = await res.json();
+    const d = JSON.parse(atob(meta.content.replace(/\n/g,'')));
     updateFromStatus(d);
   } catch(e) {
     pushLog('▶ connection lost — retrying...', 'warn');
