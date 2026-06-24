@@ -90,74 +90,60 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 <script>
 const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
 
-// Characters.png: 320x320, 5 rows x 8 cols, each frame = 40x64px
-// Row 0 = blue shirt guy, Row 1 = glasses guy, Row 2 = dark hair woman
-// Row 3 = pink woman, Row 4 = light blue guy
-// Frames 0-3 = front-facing walk cycle (best for seated look)
+// Characters.png: 320x320px total
+// 5 rows (one character each), each row = 64px tall
+// 8 columns per row, each frame = 40px wide
+// We use frames 0 and 1 only for a simple 2-frame idle animation
 const CHAR_IMG = new Image();
 CHAR_IMG.src = BASE + '/Characters/Characters.png';
 
-const FW = 40; // frame width in spritesheet
-const FH = 64; // frame height in spritesheet
-const FRAMES = 4; // use first 4 frames (front-facing)
+// Source frame dimensions in the spritesheet
+const SRC_W = 40;
+const SRC_H = 64;
 
-// Desk sprite from seated sheets for the desk only
-const DESK_IMG = new Image();
-DESK_IMG.src = BASE + '/Characters/Seated_Characters/Office%20Boss%20List.png';
+// Display size on screen — keep small so all fit
+const DST_W = 80;
+const DST_H = Math.round(DST_W * SRC_H / SRC_W); // = 128
 
 const W = window.innerWidth;
 const H = window.innerHeight - 104;
 
-// Sprite display size
-const SW = 96;
-const SH = Math.round(SW * (64/40));
-
-// Desk display size
-const DW = 140;
-const DH = 60;
+// All agents on one horizontal row
+// Sprite bottom anchored at AGENT_Y
+const AGENT_Y = Math.round(H * 0.68);
 
 const agents = [
-  { id:'ict', name:'ICT Agent', color:'#4a9aff', state:'active',
+  { id:'ict',  name:'ICT Agent',      color:'#4a9aff', state:'active',   row:0,
     msg:'SPY @ $737\nnot at key level',
     role:'Scans SPY and QQQ every 60s for ICT key levels, Fair Value Gaps, and 1-minute confirmation.',
-    row:0, xi:0, ax:0, ay:0,
+    ax: Math.round(W*0.10),
     settings:[{label:'Tickers',key:'t',val:'SPY, QQQ'},{label:'Window start',key:'ws',val:'10:00 AM ET'},{label:'Window end',key:'we',val:'3:30 PM ET'},{label:'Min R:R',key:'rr',val:'1.5'}]
   },
-  { id:'ind', name:'IND Agent', color:'#f0b429', state:'alert',
+  { id:'ind',  name:'IND Agent',      color:'#f0b429', state:'alert',    row:1,
     msg:'TSLA ADX 54\nout of range!',
     role:'Scans TSLA, NVDA, IWM for ADX/MACD/RSI/VWAP/Volume confluence signals.',
-    row:1, xi:1, ax:0, ay:0,
+    ax: Math.round(W*0.28),
     settings:[{label:'ADX min',key:'adx_min',val:'25'},{label:'ADX max',key:'adx_max',val:'48'},{label:'Volume mult',key:'vol',val:'1.5x'},{label:'BB expand',key:'bb',val:'yes'}]
   },
-  { id:'risk', name:'Risk Manager', color:'#7fc87f', state:'active',
+  { id:'risk', name:'Risk Manager',   color:'#7fc87f', state:'active',   row:2,
     msg:'Balance OK\nFloor: $261.36',
     role:'Monitors balance, VIX filter, drawdown limits, trailing floor, and kill switch.',
-    row:2, xi:2, ax:0, ay:0,
+    ax: Math.round(W*0.50),
     settings:[{label:'Risk per trade',key:'r',val:'35%'},{label:'VIX min',key:'vmin',val:'16'},{label:'VIX max',key:'vmax',val:'25'},{label:'Max daily loss',key:'ml',val:'15%'}]
   },
-  { id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping',
+  { id:'exec', name:'Order Executor', color:'#9a7fff', state:'sleeping', row:3,
     msg:'Standing by\nNo signal yet',
     role:'Places LIMIT orders on Schwab when signal confirmed. Picks best contract by delta, DTE and volume.',
-    row:3, xi:3, ax:0, ay:0,
+    ax: Math.round(W*0.70),
     settings:[{label:'DTE min',key:'dmin',val:'0'},{label:'DTE max',key:'dmax',val:'3'},{label:'Delta min',key:'delmin',val:'0.10'},{label:'Min vol',key:'mv',val:'25'}]
   },
-  { id:'exit', name:'Exit Monitor', color:'#ff9f7f', state:'sleeping',
+  { id:'exit', name:'Exit Monitor',   color:'#ff9f7f', state:'sleeping', row:4,
     msg:'No open\npositions',
     role:'Watches open positions and fires partial exits at profit targets or stop loss at -40%.',
-    row:4, xi:4, ax:0, ay:0,
+    ax: Math.round(W*0.88),
     settings:[{label:'Stop loss',key:'sl',val:'40%'},{label:'Exit 1',key:'e1',val:'+20%'},{label:'Exit 2',key:'e2',val:'+40%'},{label:'Exit 3',key:'e3',val:'+75%'}]
   },
 ];
-
-// X positions evenly spread
-const XS = [0.10, 0.28, 0.50, 0.72, 0.90];
-// Y positions — alternating rows for depth effect
-const YS = [0.52, 0.62, 0.52, 0.62, 0.52];
-
-agents.forEach(a => {
-  a.ax = Math.round(XS[a.xi] * W);
-  a.ay = Math.round(YS[a.xi] * H);
-});
 
 const fcEl = document.getElementById('fc');
 const scEl = document.getElementById('sc');
@@ -210,97 +196,83 @@ function drawFloor() {
   });
 }
 
-function drawDesk(ax, ay) {
-  // Simple pixel art desk
-  const dw = DW, dh = DH;
+function drawDesk(ctx, ax, bottomY) {
+  const dw = DST_W + 40;
+  const dh = 28;
   const dx = ax - dw/2;
-  const dy = ay - dh*0.3;
-  // desk surface
-  sctx.fillStyle = '#4a3420';
-  sctx.fillRect(dx, dy, dw, 8);
-  // desk body
-  sctx.fillStyle = '#3d2b1a';
-  sctx.fillRect(dx, dy+8, dw, dh-8);
-  // desk top highlight
-  sctx.fillStyle = '#5a4030';
-  sctx.fillRect(dx, dy, dw, 3);
+  const dy = bottomY - dh;
+  ctx.fillStyle='#3d2b1a'; ctx.fillRect(dx, dy, dw, dh);
+  ctx.fillStyle='#4a3420'; ctx.fillRect(dx, dy, dw, 5);
+  ctx.fillStyle='#2a1a08'; ctx.fillRect(dx+4, dy+dh, 6, 12);
+  ctx.fillRect(dx+dw-10, dy+dh, 6, 12);
   // monitor
-  sctx.fillStyle = '#0a0a1a';
-  sctx.fillRect(ax-10, dy-20, 20, 16);
-  sctx.fillStyle = '#00aa44';
-  sctx.globalAlpha=0.7;
-  sctx.fillRect(ax-8, dy-18, 16, 12);
-  sctx.globalAlpha=1;
-  // monitor stand
-  sctx.fillStyle='#222';
-  sctx.fillRect(ax-2, dy-4, 4, 4);
+  ctx.fillStyle='#0a0a18'; ctx.fillRect(ax-12, dy-22, 24, 18);
+  ctx.fillStyle='#004422'; ctx.fillRect(ax-10, dy-20, 20, 14);
+  ctx.fillStyle='#00cc44'; ctx.globalAlpha=0.6;
+  ctx.fillRect(ax-8, dy-18, 16, 10); ctx.globalAlpha=1;
+  ctx.fillStyle='#111'; ctx.fillRect(ax-2, dy-4, 4, 4);
   // keyboard
-  sctx.fillStyle='#333';
-  sctx.fillRect(ax-14, dy+2, 18, 4);
+  ctx.fillStyle='#2a2a2a'; ctx.fillRect(ax-14, dy+3, 20, 5);
 }
 
 let frame = 0;
+// Slow down animation — change frame every 20 render frames = ~3fps for idle
+const ANIM_SPEED = 20;
 
 function drawAgents() {
   sctx.clearRect(0,0,W,H);
-  const t = frame/60;
+  const t = frame;
 
-  // Sort by ay so agents further back draw first (depth)
-  const sorted = [...agents].sort((a,b) => a.ay - b.ay);
-
-  sorted.forEach((a,i) => {
-    const bob = a.state==='sleeping' ? 0 : Math.sin(t*2+a.xi)*1.5;
+  agents.forEach((a, i) => {
     const ax = a.ax;
-    const ay = a.ay + bob;
+    const bob = a.state==='sleeping' ? 0 : Math.sin(t*0.05+i)*2;
+    const bottomY = AGENT_Y + bob;
+    const spriteTop = bottomY - DST_H;
+    const dx = ax - DST_W/2;
 
-    // Draw desk behind character
-    drawDesk(ax, ay);
+    // Draw desk first (behind character)
+    drawDesk(sctx, ax, bottomY);
 
-    // Draw character from Characters.png
-    // Each row = one character, cols 0-3 = front-facing frames
-    const animFrame = a.state==='sleeping'
-      ? 0
-      : Math.floor(t*2) % FRAMES;
-
-    const srcX = animFrame * FW;
-    const srcY = a.row * FH;
-    const dx = ax - SW/2;
-    const dy = ay - SH - DH*0.1;
+    // Pick exactly ONE animation frame
+    // Characters.png: row = character (0-4), col = animation frame (0-7)
+    // Use only frames 0 and 1 for a gentle 2-frame idle
+    const animCol = a.state==='sleeping' ? 0 : (Math.floor(t/ANIM_SPEED) % 2);
+    const srcX = animCol * SRC_W;
+    const srcY = a.row * SRC_H;
 
     if(CHAR_IMG.naturalWidth > 0) {
-      sctx.globalAlpha = a.state==='sleeping' ? 0.45 : 1;
-      sctx.drawImage(CHAR_IMG, srcX, srcY, FW, FH, dx, dy, SW, SH);
+      sctx.globalAlpha = a.state==='sleeping' ? 0.4 : 1;
+      sctx.drawImage(
+        CHAR_IMG,
+        srcX, srcY, SRC_W, SRC_H,  // source: one frame
+        dx, spriteTop, DST_W, DST_H // dest: on screen
+      );
       sctx.globalAlpha = 1;
-    } else {
-      sctx.fillStyle = a.color;
-      sctx.globalAlpha=0.5;
-      sctx.fillRect(dx, dy, SW, SH);
-      sctx.globalAlpha=1;
     }
 
     // Status dot
     if(a.state !== 'sleeping') {
-      const pulse = 2 + Math.abs(Math.sin(t*3+a.xi))*3;
+      const pulse = 2.5 + Math.abs(Math.sin(t*0.08+i))*2.5;
       sctx.fillStyle = a.state==='alert' ? '#f0b429' : '#7fc87f';
       sctx.beginPath();
-      sctx.arc(dx+SW-4, dy+4, pulse, 0, Math.PI*2);
+      sctx.arc(dx+DST_W+2, spriteTop+4, pulse, 0, Math.PI*2);
       sctx.fill();
     }
 
     // Z for sleeping
     if(a.state==='sleeping') {
-      const zOff = ((t*0.5)+a.xi*0.4)%1;
+      const zOff = ((t*0.008)+i*0.4)%1;
       sctx.globalAlpha = Math.max(0,1-zOff);
-      sctx.fillStyle='#aaa';
-      sctx.font='11px monospace';
-      sctx.fillText('z', ax+SW*0.22, dy - zOff*16);
+      sctx.fillStyle='#888';
+      sctx.font='bold 12px monospace';
+      sctx.fillText('z', ax+DST_W*0.3, spriteTop - zOff*18);
       sctx.globalAlpha=1;
     }
 
-    // Name label
+    // Name label below desk
     const label = a.name.toUpperCase();
     const lw = label.length*5.5+12;
-    const labelY = ay + DH*0.75;
+    const labelY = bottomY + 16;
     sctx.fillStyle='rgba(0,0,0,0.85)';
     sctx.fillRect(ax-lw/2, labelY, lw, 13);
     sctx.fillStyle = a.state==='sleeping' ? '#555' : a.color;
@@ -329,12 +301,11 @@ function initBubbles() {
 function updateBubbles() {
   agents.forEach(a => {
     const b = bubbleEls[a.id];
-    if(b){
-      const bw = 120;
-      const charTop = a.ay - SH - DH*0.1;
-      b.style.left = Math.max(5, Math.min(W-bw-5, a.ax-bw/2)) + 'px';
-      b.style.top = Math.max(60, charTop - 54) + 'px';
-    }
+    if(!b) return;
+    const spriteTop = AGENT_Y - DST_H;
+    const bw = 120;
+    b.style.left = Math.max(5, Math.min(W-bw-5, a.ax - bw/2)) + 'px';
+    b.style.top = Math.max(60, spriteTop - 52) + 'px';
   });
 }
 
@@ -343,9 +314,9 @@ scEl.addEventListener('click', function(e){
   const mx = (e.clientX-rect.left)*(W/rect.width);
   const my = (e.clientY-rect.top)*(H/rect.height);
   agents.forEach(a => {
-    const charTop = a.ay - SH - DH*0.1;
-    const dx = a.ax - SW/2;
-    if(mx>=dx && mx<=dx+SW && my>=charTop && my<=a.ay+DH){
+    const spriteTop = AGENT_Y - DST_H;
+    const dx = a.ax - DST_W/2;
+    if(mx>=dx-20 && mx<=dx+DST_W+20 && my>=spriteTop && my<=AGENT_Y+40){
       openPanel(a);
     }
   });
