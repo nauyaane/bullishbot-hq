@@ -90,27 +90,24 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 <script>
 const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
 
-// Characters.png: 320x320px total
-// 5 rows (one character each), each row = 64px tall
-// 8 columns per row, each frame = 40px wide
-// We use frames 0 and 1 only for a simple 2-frame idle animation
-const CHAR_IMG = new Image();
-CHAR_IMG.src = BASE + '/Characters/Characters.png';
+// Characters.png: 320x320, 5 rows x 8 cols
+// Each frame: 40w x 64h in source
+// Row 0=blue boss, Row 1=glasses guy, Row 2=dark woman, Row 3=pink woman, Row 4=light blue guy
+// Columns 0-1 = front facing idle (we use just these 2)
 
-// Source frame dimensions in the spritesheet
-const SRC_W = 40;
-const SRC_H = 64;
-
-// Display size on screen — keep small so all fit
-const DST_W = 80;
-const DST_H = Math.round(DST_W * SRC_H / SRC_W); // = 128
+const SRC_W = 40;   // source frame width
+const SRC_H = 64;   // source frame height
+const DST_W = 64;   // display width on screen
+const DST_H = 102;  // display height (maintains aspect ratio 40:64 = DST_W:DST_H)
 
 const W = window.innerWidth;
 const H = window.innerHeight - 104;
 
-// All agents on one horizontal row
-// Sprite bottom anchored at AGENT_Y
-const AGENT_Y = Math.round(H * 0.68);
+// All agents anchored to same Y — bottom of sprite at this Y
+const SPRITE_BOT = Math.round(H * 0.62);
+
+const CHAR_IMG = new Image();
+CHAR_IMG.src = BASE + '/Characters/Characters.png';
 
 const agents = [
   { id:'ict',  name:'ICT Agent',      color:'#4a9aff', state:'active',   row:0,
@@ -166,7 +163,6 @@ function drawFloor() {
   }
   fctx.fillStyle='#100e08'; fctx.fillRect(0,0,W,57);
   fctx.fillStyle='#2a2416'; fctx.fillRect(0,55,W,2);
-
   [[50,6],[160,6],[W/2-28,6],[W-210,6],[W-100,6]].forEach(([wx,wy])=>{
     fctx.fillStyle='#081828'; fctx.fillRect(wx,wy,50,44);
     fctx.fillStyle='#1a4a6a'; fctx.globalAlpha=0.3;
@@ -178,7 +174,6 @@ function drawFloor() {
     fctx.moveTo(wx,wy+22); fctx.lineTo(wx+50,wy+22);
     fctx.strokeStyle='#162030'; fctx.lineWidth=1; fctx.stroke();
   });
-
   fctx.fillStyle='#081408'; fctx.fillRect(W/2-120,3,240,50);
   fctx.strokeStyle='#1a4a1a'; fctx.lineWidth=1;
   fctx.strokeRect(W/2-120,3,240,50);
@@ -187,7 +182,6 @@ function drawFloor() {
   fctx.fillStyle='#3a7a3a'; fctx.fillText('TSLA $386  NVDA $202  VIX 19.1',W/2,30);
   fctx.fillStyle='#f0b429'; fctx.fillText('● SCANNING — NO SIGNAL CONFIRMED',W/2,44);
   fctx.textAlign='left';
-
   [[30,H-90],[W-50,H-90]].forEach(([px,py])=>{
     fctx.fillStyle='#2a1a08'; fctx.fillRect(px+5,py+16,8,10);
     fctx.fillStyle='#1a3a08'; fctx.fillRect(px+1,py+9,14,8);
@@ -196,83 +190,85 @@ function drawFloor() {
   });
 }
 
-function drawDesk(ctx, ax, bottomY) {
-  const dw = DST_W + 40;
-  const dh = 28;
+function drawDesk(ax, botY) {
+  const dw = DST_W + 36;
+  const dh = 24;
   const dx = ax - dw/2;
-  const dy = bottomY - dh;
-  ctx.fillStyle='#3d2b1a'; ctx.fillRect(dx, dy, dw, dh);
-  ctx.fillStyle='#4a3420'; ctx.fillRect(dx, dy, dw, 5);
-  ctx.fillStyle='#2a1a08'; ctx.fillRect(dx+4, dy+dh, 6, 12);
-  ctx.fillRect(dx+dw-10, dy+dh, 6, 12);
+  const dy = botY - dh;
+  sctx.fillStyle='#3d2b1a'; sctx.fillRect(dx, dy, dw, dh);
+  sctx.fillStyle='#4a3420'; sctx.fillRect(dx, dy, dw, 4);
+  sctx.fillStyle='#2a1a08';
+  sctx.fillRect(dx+4, botY, 5, 10);
+  sctx.fillRect(dx+dw-9, botY, 5, 10);
   // monitor
-  ctx.fillStyle='#0a0a18'; ctx.fillRect(ax-12, dy-22, 24, 18);
-  ctx.fillStyle='#004422'; ctx.fillRect(ax-10, dy-20, 20, 14);
-  ctx.fillStyle='#00cc44'; ctx.globalAlpha=0.6;
-  ctx.fillRect(ax-8, dy-18, 16, 10); ctx.globalAlpha=1;
-  ctx.fillStyle='#111'; ctx.fillRect(ax-2, dy-4, 4, 4);
-  // keyboard
-  ctx.fillStyle='#2a2a2a'; ctx.fillRect(ax-14, dy+3, 20, 5);
+  sctx.fillStyle='#0a0a18'; sctx.fillRect(ax-10, dy-20, 20, 16);
+  sctx.fillStyle='#003322'; sctx.fillRect(ax-9, dy-19, 18, 13);
+  sctx.fillStyle='#00ff44'; sctx.globalAlpha=0.5;
+  sctx.fillRect(ax-7, dy-17, 14, 9); sctx.globalAlpha=1;
+  sctx.fillStyle='#111'; sctx.fillRect(ax-2, dy-3, 4, 4);
+  sctx.fillStyle='#2a2a2a'; sctx.fillRect(ax-12, dy+3, 16, 4);
 }
 
-let frame = 0;
-// Slow down animation — change frame every 20 render frames = ~3fps for idle
-const ANIM_SPEED = 20;
+let tick = 0;
 
 function drawAgents() {
   sctx.clearRect(0,0,W,H);
-  const t = frame;
+
+  // slow down anim: change frame every 30 ticks
+  const animFrame = Math.floor(tick / 30) % 2;
+  tick++;
 
   agents.forEach((a, i) => {
     const ax = a.ax;
-    const bob = a.state==='sleeping' ? 0 : Math.sin(t*0.05+i)*2;
-    const bottomY = AGENT_Y + bob;
-    const spriteTop = bottomY - DST_H;
+    const bob = a.state==='sleeping' ? 0 : Math.sin(tick*0.05+i)*2;
+    const botY = SPRITE_BOT + bob;
+    const topY = botY - DST_H;
     const dx = ax - DST_W/2;
 
-    // Draw desk first (behind character)
-    drawDesk(sctx, ax, bottomY);
+    // draw desk behind character
+    drawDesk(ax, botY);
 
-    // Pick exactly ONE animation frame
-    // Characters.png: row = character (0-4), col = animation frame (0-7)
-    // Use only frames 0 and 1 for a gentle 2-frame idle
-    const animCol = a.state==='sleeping' ? 0 : (Math.floor(t/ANIM_SPEED) % 2);
-    const srcX = animCol * SRC_W;
+    // draw exactly ONE frame from spritesheet
+    // srcX = col * 40, srcY = row * 64
+    const col = a.state==='sleeping' ? 0 : animFrame;
+    const srcX = col * SRC_W;
     const srcY = a.row * SRC_H;
 
     if(CHAR_IMG.naturalWidth > 0) {
       sctx.globalAlpha = a.state==='sleeping' ? 0.4 : 1;
       sctx.drawImage(
         CHAR_IMG,
-        srcX, srcY, SRC_W, SRC_H,  // source: one frame
-        dx, spriteTop, DST_W, DST_H // dest: on screen
+        srcX, srcY,      // source x, y
+        SRC_W, SRC_H,    // source width, height (one frame only)
+        dx, topY,        // dest x, y
+        DST_W, DST_H     // dest width, height
       );
       sctx.globalAlpha = 1;
     }
 
-    // Status dot
+    // status dot
     if(a.state !== 'sleeping') {
-      const pulse = 2.5 + Math.abs(Math.sin(t*0.08+i))*2.5;
+      const pulse = 2.5 + Math.abs(Math.sin(tick*0.06+i))*2.5;
       sctx.fillStyle = a.state==='alert' ? '#f0b429' : '#7fc87f';
       sctx.beginPath();
-      sctx.arc(dx+DST_W+2, spriteTop+4, pulse, 0, Math.PI*2);
+      sctx.arc(dx+DST_W+3, topY+5, pulse, 0, Math.PI*2);
       sctx.fill();
     }
 
     // Z for sleeping
     if(a.state==='sleeping') {
-      const zOff = ((t*0.008)+i*0.4)%1;
-      sctx.globalAlpha = Math.max(0,1-zOff);
+      const zOff = ((tick*0.006)+i*0.5)%1;
+      sctx.globalAlpha = Math.max(0, 1-zOff);
       sctx.fillStyle='#888';
-      sctx.font='bold 12px monospace';
-      sctx.fillText('z', ax+DST_W*0.3, spriteTop - zOff*18);
+      sctx.font='bold 11px monospace';
+      sctx.fillText('z', ax+DST_W*0.3, topY - zOff*16);
       sctx.globalAlpha=1;
     }
 
-    // Name label below desk
+    // name label
     const label = a.name.toUpperCase();
     const lw = label.length*5.5+12;
-    const labelY = bottomY + 16;
+    const labelY = botY + 14;
     sctx.fillStyle='rgba(0,0,0,0.85)';
     sctx.fillRect(ax-lw/2, labelY, lw, 13);
     sctx.fillStyle = a.state==='sleeping' ? '#555' : a.color;
@@ -281,8 +277,6 @@ function drawAgents() {
     sctx.fillText(label, ax, labelY+9);
     sctx.textAlign='left';
   });
-
-  frame++;
 }
 
 const bubbleEls = {};
@@ -302,10 +296,10 @@ function updateBubbles() {
   agents.forEach(a => {
     const b = bubbleEls[a.id];
     if(!b) return;
-    const spriteTop = AGENT_Y - DST_H;
+    const topY = SPRITE_BOT - DST_H;
     const bw = 120;
-    b.style.left = Math.max(5, Math.min(W-bw-5, a.ax - bw/2)) + 'px';
-    b.style.top = Math.max(60, spriteTop - 52) + 'px';
+    b.style.left = Math.max(5, Math.min(W-bw-5, a.ax-bw/2)) + 'px';
+    b.style.top = Math.max(60, topY - 52) + 'px';
   });
 }
 
@@ -314,9 +308,9 @@ scEl.addEventListener('click', function(e){
   const mx = (e.clientX-rect.left)*(W/rect.width);
   const my = (e.clientY-rect.top)*(H/rect.height);
   agents.forEach(a => {
-    const spriteTop = AGENT_Y - DST_H;
+    const topY = SPRITE_BOT - DST_H;
     const dx = a.ax - DST_W/2;
-    if(mx>=dx-20 && mx<=dx+DST_W+20 && my>=spriteTop && my<=AGENT_Y+40){
+    if(mx>=dx-10 && mx<=dx+DST_W+10 && my>=topY && my<=SPRITE_BOT+30){
       openPanel(a);
     }
   });
