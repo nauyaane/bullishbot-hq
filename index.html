@@ -62,20 +62,19 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 .s-active { background:#1a3a1a; color:#7fc87f; border:1px solid #2d5a2d; }
 .s-alert { background:#3a2a0a; color:#f0b429; border:1px solid #5a3a1a; }
 .s-sleep { background:#111; color:#555; border:1px solid #222; }
-.live-badge { background:#0a2a0a; border:1px solid #2d5a2d; color:#7fc87f; font-size:9px; padding:2px 8px; border-radius:3px; }
 </style>
 </head>
 <body>
 <div id="hud">
-  <div id="hud-title">▶ BULLISHBOT HQ <span id="sync-dot"></span></div>
+  <div id="hud-title">&#9658; BULLISHBOT HQ <span id="sync-dot"></span></div>
   <div id="hud-stats">
-    <div class="hstat">BAL: <span id="s-bal">—</span></div>
-    <div class="hstat">VIX: <span id="s-vix">—</span></div>
-    <div class="hstat">TRADES: <span id="s-trades">—</span></div>
-    <div class="hstat">OPEN: <span id="s-open">—</span></div>
-    <div class="hstat">FLOOR: <span id="s-floor">—</span></div>
-    <div class="hstat">MODE: <span id="s-mode">—</span></div>
-    <div class="hstat"><span id="s-time" style="color:#3a6a3a">—</span></div>
+    <div class="hstat">BAL: <span id="s-bal">&#8212;</span></div>
+    <div class="hstat">VIX: <span id="s-vix">&#8212;</span></div>
+    <div class="hstat">TRADES: <span id="s-trades">&#8212;</span></div>
+    <div class="hstat">OPEN: <span id="s-open">&#8212;</span></div>
+    <div class="hstat">FLOOR: <span id="s-floor">&#8212;</span></div>
+    <div class="hstat">MODE: <span id="s-mode">&#8212;</span></div>
+    <div class="hstat"><span id="s-time" style="color:#3a6a3a">&#8212;</span></div>
   </div>
 </div>
 <div id="world">
@@ -83,7 +82,7 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
   <canvas id="sc"></canvas>
 </div>
 <div id="log-bar">
-  <div class="log-entry" id="l0">▶ connecting to bullishbot...</div>
+  <div class="log-entry" id="l0">&#9658; connecting to bullishbot...</div>
   <div class="log-entry" id="l1"></div>
   <div class="log-entry" id="l2"></div>
   <div class="log-entry" id="l3"></div>
@@ -91,14 +90,14 @@ canvas { position:absolute; top:0; left:0; image-rendering:pixelated; image-rend
 <div id="panel-overlay">
   <div class="panel-header">
     <div class="panel-title" id="p-title">Agent</div>
-    <button class="panel-close" onclick="closePanel()">✕ close</button>
+    <button class="panel-close" onclick="closePanel()">&#10005; close</button>
   </div>
   <div id="p-content"></div>
 </div>
 
 <script>
 const BASE = 'https://nauyaane.github.io/bullishbot-hq/Pixel_Office_32x32_v1.1/PNG';
-const STATUS_URL = 'https://nauyaane.github.io/bullishbot-hq/bot_status.json';
+const STATUS_URL = 'https://raw.githubusercontent.com/nauyaane/bullishbot-hq/main/bot_status.json';
 
 const SHEETS = {
   boss:       { url: BASE+'/Characters/Seated_Characters/Office%20Boss%20List.png',  fw:80, fh:80, frames:4 },
@@ -143,7 +142,6 @@ const agents = [
   },
 ];
 
-// Tinted canvases
 const TINTED = {};
 let tintsDone = false;
 function buildTints() {
@@ -162,8 +160,7 @@ function buildTints() {
   TINTED.orange = mk(IMGS.accountant, 320, 80, 220,120,40);
 }
 
-// Live data fetch
-const logLines = ['▶ connecting to bullishbot...','','',''];
+const logLines = ['connecting...','','',''];
 function pushLog(text, cls='') {
   logLines.unshift({text, cls});
   if(logLines.length>4) logLines.pop();
@@ -176,7 +173,6 @@ function pushLog(text, cls='') {
 }
 
 function updateFromStatus(d) {
-  // HUD
   document.getElementById('s-bal').textContent = `$${d.balance.toFixed(2)}`;
   document.getElementById('s-bal').className = d.balance < d.floor ? 'danger' : '';
   const vixOk = d.vix_ok;
@@ -189,7 +185,6 @@ function updateFromStatus(d) {
   document.getElementById('s-time').textContent = d.timestamp;
   document.getElementById('sync-dot').className = 'live';
 
-  // Update agent states based on live data
   const hasOpen = d.open_positions > 0;
   const marketOpen = (() => {
     const ts = d.timestamp;
@@ -197,38 +192,30 @@ function updateFromStatus(d) {
     if(!m) return false;
     const h=parseInt(m[1]), mn=parseInt(m[2]);
     const mins = h*60+mn;
-    return mins >= 570 && mins <= 930; // 9:30 AM to 3:30 PM
+    return mins >= 570 && mins <= 930;
   })();
 
-  // ICT agent
   const ict = agents.find(a=>a.id==='ict');
   ict.state = marketOpen ? 'active' : 'sleeping';
   ict.msg = marketOpen ? 'Scanning SPY & QQQ\nfor key levels' : 'Market closed\nsleeping...';
 
-  // IND agent
   const ind = agents.find(a=>a.id==='ind');
   ind.state = marketOpen ? 'active' : 'sleeping';
   ind.msg = marketOpen ? 'Scanning TSLA\nNVDA & IWM' : 'Market closed\nsleeping...';
 
-  // Risk manager — always active when bot running
   const risk = agents.find(a=>a.id==='risk');
   risk.state = d.kill_switch ? 'alert' : 'active';
   risk.msg = d.kill_switch ? 'KILL SWITCH\nACTIVE!' : `Balance $${d.balance.toFixed(2)}\nFloor: $${d.floor.toFixed(2)}`;
 
-  // Order executor
   const exec = agents.find(a=>a.id==='exec');
   exec.state = hasOpen ? 'active' : 'sleeping';
   exec.msg = hasOpen ? `${d.open_positions} position(s)\nopen` : 'Standing by\nNo signal yet';
 
-  // Exit monitor
   const exit = agents.find(a=>a.id==='exit');
   exit.state = hasOpen ? 'active' : 'sleeping';
   exit.msg = hasOpen ? `Monitoring\n${d.open_positions} position(s)` : 'No open\npositions';
 
-  // Update bubbles
   updateBubbles();
-
-  // Log
   pushLog(`▶ ${d.timestamp} — BAL $${d.balance.toFixed(2)} | TRADES ${d.trades_today} | VIX ${d.vix.toFixed(1)}`, 'signal');
 }
 
@@ -246,7 +233,6 @@ async function fetchStatus() {
 fetchStatus();
 setInterval(fetchStatus, 30000);
 
-// Canvas setup
 const fcEl = document.getElementById('fc');
 const scEl = document.getElementById('sc');
 fcEl.width = scEl.width = W;
@@ -273,7 +259,6 @@ function drawFloor() {
     fctx.moveTo(wx,wy+22); fctx.lineTo(wx+50,wy+22);
     fctx.strokeStyle='#162030'; fctx.lineWidth=1; fctx.stroke();
   });
-  // Ticker board
   fctx.fillStyle='#081408'; fctx.fillRect(W/2-130,3,260,50);
   fctx.strokeStyle='#1a4a1a'; fctx.lineWidth=1; fctx.strokeRect(W/2-130,3,260,50);
   fctx.font='bold 9px monospace'; fctx.textAlign='center';
